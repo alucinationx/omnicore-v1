@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Aplicação principal
+  omnicore-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omnicore-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://omnicore:omnicore123@postgres:5432/omnicore_db
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SAP_ENDPOINT=${SAP_ENDPOINT}
+      - SALESFORCE_ENDPOINT=${SALESFORCE_ENDPOINT}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # Banco de dados PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: omnicore-postgres
+    environment:
+      - POSTGRES_DB=omnicore_db
+      - POSTGRES_USER=omnicore
+      - POSTGRES_PASSWORD=omnicore123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # Redis para cache e filas
+  redis:
+    image: redis:7-alpine
+    container_name: omnicore-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Prometheus para monitoramento
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: omnicore-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  # Grafana para dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: omnicore-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
